@@ -38,6 +38,7 @@ $(ICON_OUT): $(ICON_DIR)/1024-mac.png
 	@echo "Generated $(ICON_OUT)"
 
 run: all
+	@pkill -x $(APP) 2>/dev/null || true
 	open $(BUNDLE)
 
 clean:

@@ -1,11 +1,12 @@
 import SwiftUI
 import AppKit
+import Darwin
 
 struct ContentView: View {
     @StateObject private var sender = PayloadSender()
     @State private var host = ""
-    @State private var port = ""
-    @State private var filePath = ""
+    @State private var port = "50000"
+    @State private var filePath = UserDefaults.standard.string(forKey: "lastFilePath") ?? ""
 
     private var canSend: Bool {
         !sender.isSending && !host.isEmpty && !port.isEmpty && !filePath.isEmpty
@@ -41,6 +42,9 @@ struct ContentView: View {
         }
         .padding(16)
         .frame(width: 430)
+        .onAppear {
+            host = localIPAddress() ?? ""
+        }
     }
 
     private var statusColor: Color {
@@ -59,6 +63,7 @@ struct ContentView: View {
         panel.canChooseFiles = true
         if panel.runModal() == .OK {
             filePath = panel.url?.path ?? ""
+            UserDefaults.standard.set(filePath, forKey: "lastFilePath")
         }
     }
 
@@ -69,5 +74,30 @@ struct ContentView: View {
             return
         }
         sender.send(host: host, port: portNum, filePath: filePath)
+    }
+
+    private func localIPAddress() -> String? {
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0 else { return nil }
+        defer { freeifaddrs(ifaddr) }
+
+        var fallback: String?
+        var ptr = ifaddr
+        while let current = ptr {
+            defer { ptr = current.pointee.ifa_next }
+            let ifa = current.pointee
+            guard ifa.ifa_addr.pointee.sa_family == UInt8(AF_INET) else { continue }
+            let name = String(cString: ifa.ifa_name)
+            guard name != "lo0" else { continue }
+
+            var sin = ifa.ifa_addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee }
+            var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+            inet_ntop(AF_INET, &sin.sin_addr, &buf, socklen_t(INET_ADDRSTRLEN))
+            let ip = String(cString: buf)
+
+            if name == "en0" || name == "en1" { return ip }
+            fallback = ip
+        }
+        return fallback
     }
 }
