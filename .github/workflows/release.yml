@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: cd swift && make
+
+      - name: Package DMG
+        run: |
+          hdiutil create \
+            -volname "NetCat GUI" \
+            -srcfolder swift/NetcatGUI.app \
+            -ov \
+            -format UDZO \
+            "NetcatGUI-${{ github.ref_name }}.dmg"
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: NetcatGUI-${{ github.ref_name }}.dmg
+          generate_release_notes: true
