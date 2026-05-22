@@ -11,3 +11,8 @@ moc_*.h
 qrc_resources.cpp
 .qmake.stash
 build-netcatgui-*
+# Swift
+swift/.build/
+swift/NetcatGUI.app/
+!swift/Makefile
+.claude
