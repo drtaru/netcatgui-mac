@@ -16,3 +16,4 @@ swift/.build/
 swift/NetcatGUI.app/
 !swift/Makefile
 .claude
+PLAN.md

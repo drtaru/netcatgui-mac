@@ -3,47 +3,80 @@ import AppKit
 import Darwin
 
 struct ContentView: View {
+    @EnvironmentObject var bookmarkStore: BookmarkStore
     @StateObject private var sender = PayloadSender()
     @State private var host = ""
     @State private var port = "50000"
     @State private var filePath = UserDefaults.standard.string(forKey: "lastFilePath") ?? ""
+    @State private var showingBookmarkAlert = false
+    @State private var bookmarkName = ""
 
     private var canSend: Bool {
         !sender.isSending && !host.isEmpty && !port.isEmpty && !filePath.isEmpty
     }
 
+    private var canSaveBookmark: Bool {
+        !host.isEmpty && !port.isEmpty && !filePath.isEmpty
+    }
+
     var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                TextField("IP Address", text: $host)
-                    .textFieldStyle(.roundedBorder)
-                TextField("Port", text: $port)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 70)
+        NavigationSplitView {
+            BookmarksView { bookmark in
+                host = bookmark.host
+                port = bookmark.port
+                filePath = bookmark.filePath
             }
+            .environmentObject(bookmarkStore)
+        } detail: {
+            VStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    TextField("IP Address", text: $host)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Port", text: $port)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 70)
+                }
 
-            HStack(spacing: 8) {
-                TextField("File path", text: $filePath)
-                    .textFieldStyle(.roundedBorder)
-                Button("…") { selectFile() }
-                    .frame(width: 32)
+                HStack(spacing: 8) {
+                    TextField("File path", text: $filePath)
+                        .textFieldStyle(.roundedBorder)
+                    Button("…") { selectFile() }
+                        .frame(width: 32)
+                }
+
+                Text(sender.status)
+                    .font(.callout)
+                    .foregroundStyle(statusColor)
+                    .frame(maxWidth: .infinity, alignment: .center)
+
+                HStack {
+                    Button("Inject Payload") { sendPayload() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canSend)
+                    Spacer()
+                    Button("Save Bookmark") { showingBookmarkAlert = true }
+                        .buttonStyle(.bordered)
+                        .disabled(!canSaveBookmark)
+                }
             }
-
-            Button("Inject Payload") { sendPayload() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .frame(maxWidth: .infinity)
-                .disabled(!canSend)
-
-            Text(sender.status)
-                .font(.headline)
-                .foregroundStyle(statusColor)
-                .frame(maxWidth: .infinity, alignment: .center)
+            .padding(16)
+            .frame(minWidth: 300)
+            .onAppear {
+                host = localIPAddress() ?? ""
+            }
         }
-        .padding(16)
-        .frame(width: 430)
-        .onAppear {
-            host = localIPAddress() ?? ""
+        .alert("Save Bookmark", isPresented: $showingBookmarkAlert) {
+            TextField("Name", text: $bookmarkName)
+            Button("Save") {
+                guard !bookmarkName.isEmpty else { return }
+                bookmarkStore.add(name: bookmarkName, host: host, port: port, filePath: filePath)
+                bookmarkName = ""
+            }
+            Button("Cancel", role: .cancel) {
+                bookmarkName = ""
+            }
+        } message: {
+            Text("Enter a name for this bookmark.")
         }
     }
 
