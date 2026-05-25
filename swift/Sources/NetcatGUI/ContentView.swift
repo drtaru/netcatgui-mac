@@ -20,63 +20,93 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            BookmarksView { bookmark in
-                host = bookmark.host
-                port = bookmark.port
-                filePath = bookmark.filePath
-            }
-            .environmentObject(bookmarkStore)
-        } detail: {
-            VStack(spacing: 10) {
-                HStack(spacing: 8) {
-                    TextField("IP Address", text: $host)
+        navigationContainer
+            .sheet(isPresented: $showingBookmarkAlert) {
+                VStack(spacing: 16) {
+                    Text("Save Bookmark").font(.headline)
+                    TextField("Name", text: $bookmarkName)
                         .textFieldStyle(.roundedBorder)
-                    TextField("Port", text: $port)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 70)
-                }
-
-                HStack(spacing: 8) {
-                    TextField("File path", text: $filePath)
-                        .textFieldStyle(.roundedBorder)
-                    Button("…") { selectFile() }
-                        .frame(width: 32)
-                }
-
-                Text(sender.status)
-                    .font(.callout)
-                    .foregroundStyle(statusColor)
-                    .frame(maxWidth: .infinity, alignment: .center)
-
-                HStack {
-                    Button("Inject Payload") { sendPayload() }
+                        .frame(width: 220)
+                    HStack(spacing: 12) {
+                        Button("Cancel") {
+                            bookmarkName = ""
+                            showingBookmarkAlert = false
+                        }
+                        Button("Save") {
+                            guard !bookmarkName.isEmpty else { return }
+                            bookmarkStore.add(name: bookmarkName, host: host, port: port, filePath: filePath)
+                            bookmarkName = ""
+                            showingBookmarkAlert = false
+                        }
                         .buttonStyle(.borderedProminent)
-                        .disabled(!canSend)
-                    Spacer()
-                    Button("Save Bookmark") { showingBookmarkAlert = true }
-                        .buttonStyle(.bordered)
-                        .disabled(!canSaveBookmark)
+                        .disabled(bookmarkName.isEmpty)
+                    }
                 }
+                .padding(24)
             }
-            .padding(16)
-            .frame(minWidth: 300)
-            .onAppear {
-                host = localIPAddress() ?? ""
+    }
+
+    @ViewBuilder
+    private var navigationContainer: some View {
+        if #available(macOS 13, *) {
+            NavigationSplitView {
+                sidebarContent
+            } detail: {
+                detailContent
+            }
+        } else {
+            NavigationView {
+                sidebarContent
+                detailContent
             }
         }
-        .alert("Save Bookmark", isPresented: $showingBookmarkAlert) {
-            TextField("Name", text: $bookmarkName)
-            Button("Save") {
-                guard !bookmarkName.isEmpty else { return }
-                bookmarkStore.add(name: bookmarkName, host: host, port: port, filePath: filePath)
-                bookmarkName = ""
+    }
+
+    private var sidebarContent: some View {
+        BookmarksView { bookmark in
+            host = bookmark.host
+            port = bookmark.port
+            filePath = bookmark.filePath
+        }
+        .environmentObject(bookmarkStore)
+    }
+
+    private var detailContent: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                TextField("IP Address", text: $host)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Port", text: $port)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 70)
             }
-            Button("Cancel", role: .cancel) {
-                bookmarkName = ""
+
+            HStack(spacing: 8) {
+                TextField("File path", text: $filePath)
+                    .textFieldStyle(.roundedBorder)
+                Button("…") { selectFile() }
+                    .frame(width: 32)
             }
-        } message: {
-            Text("Enter a name for this bookmark.")
+
+            Text(sender.status)
+                .font(.callout)
+                .foregroundStyle(statusColor)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            HStack {
+                Button("Inject Payload") { sendPayload() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canSend)
+                Spacer()
+                Button("Save Bookmark") { showingBookmarkAlert = true }
+                    .buttonStyle(.bordered)
+                    .disabled(!canSaveBookmark)
+            }
+        }
+        .padding(16)
+        .frame(minWidth: 300)
+        .onAppear {
+            host = localIPAddress() ?? ""
         }
     }
 

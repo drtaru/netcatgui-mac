@@ -9,6 +9,5 @@ struct NetcatGUIApp: App {
             ContentView()
                 .environmentObject(bookmarkStore)
         }
-        .windowResizability(.contentSize)
     }
 }

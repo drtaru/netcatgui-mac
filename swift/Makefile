@@ -1,6 +1,8 @@
 APP      = NetcatGUI
 BUNDLE   = $(APP).app
-BINARY   = .build/release/$(APP)
+BINARY   = .build/universal/$(APP)
+ARM_BIN  = .build/arm64-apple-macosx/release/$(APP)
+X86_BIN  = .build/x86_64-apple-macosx/release/$(APP)
 ICON_DIR = Resources/AppIcon.appiconset
 ICON_SRC = $(ICON_DIR)/1024-mac.png
 ICON_OUT = Resources/AppIcon.icns
@@ -19,7 +21,10 @@ $(BUNDLE): $(BINARY) $(ICON_OUT)
 	@echo "Built $@"
 
 $(BINARY):
-	swift build -c release
+	swift build -c release --arch arm64
+	swift build -c release --arch x86_64
+	@mkdir -p .build/universal
+	lipo -create $(ARM_BIN) $(X86_BIN) -output $(BINARY)
 
 $(ICON_OUT): $(ICON_SRC)
 	@rm -rf $(ICONSET) && mkdir -p $(ICONSET)
@@ -42,4 +47,4 @@ run: all
 
 clean:
 	swift package clean
-	rm -rf $(BUNDLE) $(ICON_OUT)
+	rm -rf $(BUNDLE) $(ICON_OUT) .build/universal
