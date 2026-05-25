@@ -1,41 +1,40 @@
 APP      = NetcatGUI
 BUNDLE   = $(APP).app
+BINARY   = .build/release/$(APP)
 ICON_DIR = Resources/AppIcon.appiconset
+ICON_SRC = $(ICON_DIR)/1024-mac.png
 ICON_OUT = Resources/AppIcon.icns
-ICONSET  = /tmp/NetcatGUI.iconset
+ICONSET  = /tmp/$(APP).iconset
 
 .PHONY: all run clean icons
 
 all: $(BUNDLE)
 
-$(BUNDLE): .build/release/$(APP) $(ICON_OUT)
-	@mkdir -p $(BUNDLE)/Contents/MacOS
-	@mkdir -p $(BUNDLE)/Contents/Resources
-	cp .build/release/$(APP) $(BUNDLE)/Contents/MacOS/
-	cp Resources/Info.plist $(BUNDLE)/Contents/
-	cp $(ICON_OUT) $(BUNDLE)/Contents/Resources/
-	@echo "Built $(BUNDLE)"
+$(BUNDLE): $(BINARY) $(ICON_OUT)
+	@rm -rf $@
+	@mkdir -p $@/Contents/MacOS $@/Contents/Resources
+	cp $(BINARY)           $@/Contents/MacOS/
+	cp Resources/Info.plist $@/Contents/
+	cp $(ICON_OUT)          $@/Contents/Resources/
+	@echo "Built $@"
 
-.build/release/$(APP):
+$(BINARY):
 	swift build -c release
 
-icons: $(ICON_OUT)
-
-$(ICON_OUT): $(ICON_DIR)/1024-mac.png
+$(ICON_OUT): $(ICON_SRC)
 	@rm -rf $(ICONSET) && mkdir -p $(ICONSET)
-	sips -s format png -z 16  16  "$(ICON_DIR)/1024-mac.png" --out "$(ICONSET)/icon_16x16.png"      >/dev/null
-	sips -s format png -z 32  32  "$(ICON_DIR)/1024-mac.png" --out "$(ICONSET)/icon_16x16@2x.png"   >/dev/null
-	sips -s format png -z 32  32  "$(ICON_DIR)/1024-mac.png" --out "$(ICONSET)/icon_32x32.png"      >/dev/null
-	sips -s format png -z 64  64  "$(ICON_DIR)/1024-mac.png" --out "$(ICONSET)/icon_32x32@2x.png"   >/dev/null
-	sips -s format png -z 128 128 "$(ICON_DIR)/1024-mac.png" --out "$(ICONSET)/icon_128x128.png"    >/dev/null
-	sips -s format png -z 256 256 "$(ICON_DIR)/1024-mac.png" --out "$(ICONSET)/icon_128x128@2x.png" >/dev/null
-	sips -s format png -z 256 256 "$(ICON_DIR)/1024-mac.png" --out "$(ICONSET)/icon_256x256.png"    >/dev/null
-	sips -s format png -z 512 512 "$(ICON_DIR)/1024-mac.png" --out "$(ICONSET)/icon_256x256@2x.png" >/dev/null
-	sips -s format png -z 512 512 "$(ICON_DIR)/1024-mac.png" --out "$(ICONSET)/icon_512x512.png"    >/dev/null
-	sips -s format png -z 1024 1024 "$(ICON_DIR)/1024-mac.png" --out "$(ICONSET)/icon_512x512@2x.png" >/dev/null
-	iconutil -c icns -o $(ICON_OUT) $(ICONSET)
+	@for size in 16 32 64 128 256 512 1024; do \
+		sips -s format png -z $$size $$size "$<" \
+			--out "$(ICONSET)/icon_$${size}x$${size}.png" >/dev/null; \
+	done
+	@cp $(ICONSET)/icon_32x32.png   $(ICONSET)/icon_16x16@2x.png
+	@cp $(ICONSET)/icon_64x64.png   $(ICONSET)/icon_32x32@2x.png
+	@cp $(ICONSET)/icon_256x256.png $(ICONSET)/icon_128x128@2x.png
+	@cp $(ICONSET)/icon_512x512.png $(ICONSET)/icon_256x256@2x.png
+	@cp $(ICONSET)/icon_1024x1024.png $(ICONSET)/icon_512x512@2x.png
+	iconutil -c icns -o $@ $(ICONSET)
 	@rm -rf $(ICONSET)
-	@echo "Generated $(ICON_OUT)"
+	@echo "Generated $@"
 
 run: all
 	@pkill -x $(APP) 2>/dev/null || true
@@ -43,4 +42,4 @@ run: all
 
 clean:
 	swift package clean
-	rm -rf $(BUNDLE)
+	rm -rf $(BUNDLE) $(ICON_OUT)

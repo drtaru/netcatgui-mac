@@ -1,22 +1,66 @@
 name: Release
-
 on:
   push:
     tags:
       - 'v*'
-
 jobs:
   build:
     runs-on: macos-latest
     permissions:
       contents: write
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Build
         run: cd swift && make
+
+      - name: Import certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.PROD_MACOS_CERTIFICATE }}
+          CERTIFICATE_PWD: ${{ secrets.PROD_MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PWD: ${{ secrets.PROD_MACOS_CI_KEYCHAIN_PWD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          echo -n "$CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+
+          security import "$CERTIFICATE_PATH" -P "$CERTIFICATE_PWD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+      - name: Codesign app
+        env:
+          CERT_NAME: ${{ secrets.PROD_MACOS_CERTIFICATE_NAME }}
+        run: |
+          codesign --force --deep --options runtime \
+            --sign "$CERT_NAME" \
+            swift/NetcatGUI.app
+
+      - name: Notarize app
+        env:
+          APPLE_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_APPLE_ID }}
+          NOTARIZATION_PWD: ${{ secrets.PROD_MACOS_NOTARIZATION_PWD }}
+          TEAM_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_TEAM_ID }}
+        run: |
+          ditto -c -k --keepParent swift/NetcatGUI.app NetcatGUI-notarize.zip
+
+          xcrun notarytool submit NetcatGUI-notarize.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$NOTARIZATION_PWD" \
+            --team-id "$TEAM_ID" \
+            --wait
+
+          xcrun stapler staple swift/NetcatGUI.app
+
+      - name: Package zip
+        run: |
+          ditto -c -k --keepParent swift/NetcatGUI.app \
+            "NetcatGUI-${{ github.ref_name }}.zip"
 
       - name: Package DMG
         run: |
@@ -27,8 +71,32 @@ jobs:
             -format UDZO \
             "NetcatGUI-${{ github.ref_name }}.dmg"
 
+      - name: Codesign and notarize DMG
+        env:
+          CERT_NAME: ${{ secrets.PROD_MACOS_CERTIFICATE_NAME }}
+          APPLE_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_APPLE_ID }}
+          NOTARIZATION_PWD: ${{ secrets.PROD_MACOS_NOTARIZATION_PWD }}
+          TEAM_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_TEAM_ID }}
+        run: |
+          codesign --force --sign "$CERT_NAME" \
+            "NetcatGUI-${{ github.ref_name }}.dmg"
+
+          xcrun notarytool submit "NetcatGUI-${{ github.ref_name }}.dmg" \
+            --apple-id "$APPLE_ID" \
+            --password "$NOTARIZATION_PWD" \
+            --team-id "$TEAM_ID" \
+            --wait
+
+          xcrun stapler staple "NetcatGUI-${{ github.ref_name }}.dmg"
+
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain $RUNNER_TEMP/app-signing.keychain-db
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: NetcatGUI-${{ github.ref_name }}.dmg
+          files: |
+            NetcatGUI-${{ github.ref_name }}.dmg
+            NetcatGUI-${{ github.ref_name }}.zip
           generate_release_notes: true
