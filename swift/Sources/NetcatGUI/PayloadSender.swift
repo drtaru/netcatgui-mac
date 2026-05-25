@@ -11,12 +11,16 @@ final class PayloadSender: ObservableObject {
     @Published var statusType: SendStatus = .idle
     @Published var isSending = false
 
+    private var timeoutTask: Task<Void, Never>?
+
     func send(host: String, port: UInt16, filePath: String) {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)) else {
             status = "Error: could not read file"
             statusType = .failure
             return
         }
+
+        let timeout = min(300.0, max(15.0, 10.0 + Double(data.count) / 125_000))
 
         isSending = true
         status = "Connecting..."
@@ -28,6 +32,15 @@ final class PayloadSender: ObservableObject {
             using: .tcp
         )
 
+        timeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            guard let self, self.isSending else { return }
+            connection.cancel()
+            self.status = "Timed out after \(Int(timeout))s"
+            self.statusType = .failure
+            self.isSending = false
+        }
+
         connection.stateUpdateHandler = { [weak self] state in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -37,6 +50,7 @@ final class PayloadSender: ObservableObject {
                     connection.send(content: data, completion: .contentProcessed { error in
                         Task { @MainActor [weak self] in
                             guard let self else { return }
+                            self.timeoutTask?.cancel()
                             if let error {
                                 self.status = "Error: \(error.localizedDescription)"
                                 self.statusType = .failure
@@ -49,6 +63,7 @@ final class PayloadSender: ObservableObject {
                         }
                     })
                 case .failed(let error):
+                    self.timeoutTask?.cancel()
                     self.status = "Failed: \(error.localizedDescription)"
                     self.statusType = .failure
                     self.isSending = false
