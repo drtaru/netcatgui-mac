@@ -4,7 +4,8 @@ A native macOS GUI for sending arbitrary file payloads over raw TCP (netcat prot
 
 Enter a target IP and port, select a file, and send — identical to `nc host port < file`.
 
-<img width="789" height="416" alt="image" src="https://github.com/user-attachments/assets/1c196387-c442-45c2-87cd-fed744c2d748" />
+<img width="789" height="416" alt="image" src="https://github.com/user-attachments/assets/4a8944c1-e3dc-4b9d-9b0f-1dec6c7c9265" />
+
 
 
 ## Requirements
